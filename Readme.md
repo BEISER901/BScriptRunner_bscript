@@ -13,7 +13,7 @@ yarn bscriptrunner
 
 ## Использование
 ```
-const BScriptRunner = require('BScriptRunner').BScriptRunner;
+const BScriptRunner = require('bscriptrunner').BScriptRunner;
 const bScriptRunner = new BScriptRunner(CMDEnviroment, {/*...*/} // optional );
 bScriptRunner.Create(`
 print 123
@@ -28,7 +28,7 @@ bScriptRunner.executer() //*
 ```
 
 ```nodejs
-const BScriptRunner = require('BScriptRunner').BScriptRunner;
+const BScriptRunner = require('bscriptrunner').BScriptRunner;
 const bScriptRunner = new BScriptRunner(CMDEnviroment, {/*...*/} // optional );
 bScriptRunner.Create("print 123; print ${str 123}; print ${num 123}") // BScript)
 bScriptRunner.executer() //* 
