@@ -1,0 +1,16 @@
+{
+  "name": "bscriptrunner",
+  "version": "1.0.0",
+  "description": "\"bscript\" - скрипт с особым синтаксиом и предназначен для дебагинга кода для nodejs скрипта. BScriptRunner это небольшая библиотека для nodejs, она предназначена для запуска скриптов \"bscript\" в режиме рантайма.",
+  "main": "index.js",
+  "devDependencies": {},
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [
+    "bscript",
+    "nodejs"
+  ],
+  "author": "Bondar Nikita ( Beiser )",
+  "license": "ISC"
+}
