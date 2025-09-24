@@ -1,5 +1,6 @@
 const fs = require('fs')
 const path = require('path')
+const Type = require('././SRC/types/Type')
 
 function baseInterpolation(text) {
 	return eval('`' + text + '`')
@@ -71,6 +72,7 @@ module.exports = class BScriptRunner {
 			assigningValue: /\$\((.*)\)=/,
 			preRunClean: /^[\n\s\t]*/gm,
 		}
+		this.Type = Type;
 	}
     pathIdInfo(pathId) {
     	const splitedPathId = pathId.split(":");
@@ -92,6 +94,7 @@ module.exports = class BScriptRunner {
 		if(!this.scopes[scopePathId])
 			this.scopes[scopePathId] = {$arg: [], $val: {}};
 		this.scopes[(scopePathId??"root")].$val = { ...(this.scopes[(scopePathId??"root")].$val??{}), [scopeValName]: scopeVal };
+		return new Type({ type: "assignment", name: scopeValName, val: scopeVal })
 	}
     commandExist(commandName) {
     	return !!this.cmdEnviroment._commands[commandName];
@@ -103,7 +106,7 @@ module.exports = class BScriptRunner {
     		}
 			return { errorCode: -1};
     	}
-    	try {				
+    	try {
     		return await this.cmdEnviroment._commands[commandName].execute.bind(this)(...args);
     	} catch(e) {
 			this.cmdEnviroment.commandController.Print(e.message.replace("\n", ""));
@@ -272,7 +275,7 @@ module.exports = class BScriptRunner {
 								val.set((await scopeLast.executer()))
 								continue;
 							} else if(val?.type == "text") {
-								this.setValueToScope(assignment, val, this.scopePathId??"root");
+								results.push(this.setValueToScope(assignment, val, this.scopePathId??"root"));
 								continue;
 							}				
 		    			}
@@ -299,20 +302,35 @@ module.exports = class BScriptRunner {
 							const bScriptRunner = new BScriptRunner(this.cmdEnviroment, { silent: true, scopes: this.scopes, scopePathId: scopes[0].path })					
 							bScriptRunner.Create(scopes[0].scopeScript, this.paths);
 			    			if(isFunc){
-			    				const value = { type: "func", name: assignment, val: bScriptRunner.executer };
+			    				const value = new Type({ type: "func", name: assignment, val: bScriptRunner.executer });
 			    				if(value)
 			    					results.push(value);
 		    					if(assignment) {    				
-			    					this.setValueToScope(assignment, value, this.scopePathId??"root");
+			    					results.push(this.setValueToScope(assignment, value, this.scopePathId??"root"));
+			    					continue;
 			    				}
 			    			}
 			    			else {
 			    				const executer = !isText ? isAsync ? bScriptRunner.executer(): await bScriptRunner.executer() : null
-			    				const value = isText ? { type: "text", val: this.UnFormateScopes(scopes[0].scopeScript) }: isNum ? { type: "number", val: Number(scopes[0].scopeScript) } : isAsync ? { type: "promise", val: executer } : executer?.type == "func" ? { ...executer, name: assignment } : executer
-			    				results.push(value);
+			    				const value = isText ? 
+			    					new Type({ type: "text", val: this.UnFormateScopes(scopes[0].scopeScript) })
+			    				: 
+			    					isNum 
+			    				? 
+			    					new Type({ type: "number", val: Number(scopes[0].scopeScript) })
+			    				: 
+			    					isAsync 
+			    				? 
+			    					new Type({ type: "promise", val: executer })
+			    				: executer?.type == "func" ? 
+			    					new Type({ ...executer, name: assignment }) 
+			    				: 
+			    					executer
 		    					if(assignment) {    	
-			    					this.setValueToScope(assignment, value, this.scopePathId??"root");
+			    					results.push(this.setValueToScope(assignment, value, this.scopePathId??"root"));
+			    					continue;
 			    				}
+			    				results.push(value);
 			    				if(isText)
 			    					continue;
 			    			}
@@ -321,19 +339,19 @@ module.exports = class BScriptRunner {
 		    			}
 		    		} 
 		    		if(quotes) {
-		    			results = [...results, ...quotes.map(quote=>({type: "text", val: quote.quoteText}))];
+		    			results = [...results, ...quotes.map(quote=>(new Type({ type: "text", val: quote.quoteText })))];
 		    			continue;
 		    		} 			
 		    		try {
 		    			function argType(arg, _browser=0) {
 		    				if(Array.isArray(arg)) {
 		    					const val = arg.map(x=>argType(x, ++_browser))
-		    					return { type: "array", val }
+		    					return new Type({ type: "array", val })
 		    				}
-		    				return arg? !arg?.type && !arg?.val? { type: "RAW", val: arg } : arg : null
+		    				return arg? !arg?.type && !arg?.val? new Type(arg) : arg : null
 		    			}
 
-		    			let args = frameScript.split(" ");
+		    			let args = frameScript.split(" ").filter(x => x != '');
 		    			const commandName = args[0].replace(" ");
 		    			args.shift();
 		    			for(let i = 0; i < args.length; i++) {
@@ -365,7 +383,7 @@ module.exports = class BScriptRunner {
 	    	return results.length == 0? 
 	    		null
 	    	: results.length > 1 ?
-	    		{ type: "array", val: results }
+	    		new Type({ type: "array", val: results })
 	    	: results[0];
     	}
 	}

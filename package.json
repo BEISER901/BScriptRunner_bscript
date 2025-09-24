@@ -1,6 +1,6 @@
 {
   "name": "bscriptrunner",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "description": "\"bscript\" - скрипт с особым синтаксиом и предназначен для дебагинга кода для nodejs скрипта. BScriptRunner это небольшая библиотека для nodejs, она предназначена для запуска скриптов \"bscript\" в режиме рантайма.",
   "main": "index.js",
   "devDependencies": {},
