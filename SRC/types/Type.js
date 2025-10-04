@@ -36,10 +36,12 @@ module.exports = class Type {
 						this.val
 					:
 					this.type == "object"?
-						this.val
+						Object.keys(this.val).map(key=>{
+							return `${key}:${this.val[key].GetDisplayType().split("\n").map(row=>"\n -- "+row).join("")}`
+						}).join("\n")
 					:
 					this.type == "ref"?
-						`[REF{${this.prop.join(".")}}]`
+						`[REF{${this.prop.join(".")}}{\n${this.get().GetDisplayType()}\n}]`
 					:
 						`[NOTYPE ${this.val}]`
 				) 

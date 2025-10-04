@@ -256,14 +256,28 @@ module.exports = class BScriptRunner {
 					// /////////
 		    		let scopes = this.scriptPathFinder(frameScript, 'scope');
 		    		let quotes = this.scriptPathFinder(frameScript, 'quote');
+
+		    		const toObject = async (type) => 
+		    			await this.commandExecute.bind(this)({ commandName: "object", args: [type], options: this.options })
+		    		const toRef = async (props, object) => {
+		    			return await this.commandExecute.bind(this)({ commandName: "ref", args: [object, ...props.map(x=>new Type(x))], options: this.options })
+		    		}
+		    		function newScopeRunner(script, scopeid) {
+						const scope = new BScriptRunner(this.cmdEnviroment, { silent: true, scopes: this.scopes, scopePathId: scopeid })	
+						scope.Create(script, this.paths);
+		    			return scope.executer
+		    		}
+
 		    		if(scopes){
 		    			const assignment = this.regexExpression.assigningValue.exec(scopes[scopes.length-1].beforePath)?.[1];
 		    			const isFunc = scopes[0].beforePath.endsWith("FUNC=>");
+		    			const isObject = scopes[0].beforePath.endsWith("OBJECT");
 		    			const isAsync = scopes[0].beforePath.endsWith("ASYNC");
 		    			const isArg = scopes[0].beforePath.endsWith("$");
 		    			const isText = scopes[0].beforePath.endsWith("TEXT");
 		    			const isNum = scopes[0].beforePath.endsWith("NUM");
 		    			const isIf = scopes[0].beforePath.startsWith("IF");
+
 		    			let scopesInAssigment;
 		    			if(assignment && (scopesInAssigment = this.scriptPathFinder(assignment, 'scope'))) {		
 	    					const assignmentScope = new BScriptRunner(this.cmdEnviroment, { silent: true, scopes: this.scopes, scopePathId: scopes[0].path })	
@@ -281,28 +295,27 @@ module.exports = class BScriptRunner {
 		    			}
 
 		    			if(isIf){
-							const scope0 = new BScriptRunner(this.cmdEnviroment, { silent: true, scopes: this.scopes, scopePathId: scopes[0].path })					
-							scope0.Create(scopes[0].scopeScript, this.paths);
-							const typeofValue = (await scope0.executer());
+							const scope0 = newScopeRunner.bind(this)(scopes[0].scopeScript, scopes[0].path);
+							const typeofValue = (await scope0());
 							if(typeofValue?.val) {
-								const scope1 = new BScriptRunner(this.cmdEnviroment, { silent: true, scopes: this.scopes, scopePathId: scopes[1].path })					
-								scope1.Create(scopes[1].scopeScript, this.paths);
-								results.push((await scope1.executer()));
+								const scope1 = newScopeRunner.bind(this)(scopes[1].scopeScript, scopes[1].path);					
+								results.push((await scope1()));
 							} else {
 								if(scopes?.[2]) 
 									if(scopes[2].beforePath.includes("ELSE")){								
-										const scope2 = new BScriptRunner(this.cmdEnviroment, { silent: true, scopes: this.scopes, scopePathId: scopes[2].path })					
-										scope2.Create(scopes[2].scopeScript, this.paths);
-										results.push((await scope2.executer()));
+										const scope2 = newScopeRunner.bind(this)(scopes[2].scopeScript, scopes[2].path);				
+										results.push((await scope2()));
 									}
 							}
 							continue;
 		    			}
 		    			if(!isArg) {
-							const bScriptRunner = new BScriptRunner(this.cmdEnviroment, { silent: true, scopes: this.scopes, scopePathId: scopes[0].path })					
-							bScriptRunner.Create(scopes[0].scopeScript, this.paths);
+		    				const scope0 = async (args) => {
+		    					const result = await newScopeRunner.bind(this)(scopes[0].scopeScript, scopes[0].path)(args)
+		    					return isObject ? await toObject(result) : result
+		    				}
 			    			if(isFunc){
-			    				const value = new Type({ type: "func", name: assignment, val: bScriptRunner.executer });
+			    				const value = new Type({ type: "func", name: assignment, val: scope0 });
 			    				if(value)
 			    					results.push(value);
 		    					if(assignment) {    				
@@ -311,7 +324,7 @@ module.exports = class BScriptRunner {
 			    				}
 			    			}
 			    			else {
-			    				const executer = !isText ? isAsync ? bScriptRunner.executer(): await bScriptRunner.executer() : null
+			    				const executer = !isText ? isAsync ? scope0(): await scope0() : null
 			    				const value = isText ? 
 			    					new Type({ type: "text", val: this.UnFormateScopes(scopes[0].scopeScript) })
 			    				: 
@@ -341,7 +354,7 @@ module.exports = class BScriptRunner {
 		    		if(quotes) {
 		    			results = [...results, ...quotes.map(quote=>(new Type({ type: "text", val: quote.quoteText })))];
 		    			continue;
-		    		} 			
+		    		}
 		    		try {
 		    			function argType(arg, _browser=0) {
 		    				if(Array.isArray(arg)) {
@@ -366,14 +379,29 @@ module.exports = class BScriptRunner {
 		    				if(arg)
 		    					args[i] = argType(arg)
 		    			}
+	    				let value;
 		    			if(this.commandExist(commandName)) {	    				
-		    				let value;
 		    				if(value = await this.commandExecute.bind(this)({ commandName, args, options: this.options })){
 		    					results.push(value);
 		    				}
-		    			}
-		    			else{
-		    				throw new Error(`Command by name "${commandName}" not found!`)
+		    			} else{
+		    				let refPath;
+		    				if((refPath = commandName.split("."))) {
+			    				if(commandName.startsWith("$")){
+				    				if(value = await this.commandExecute.bind(this)({ commandName: "$val", args: [new Type(refPath[0].substring(1))], options: this.options })){
+		    							if(refPath.length > 1) {
+		    								refPath.shift();
+		    								results.push(await toRef(refPath, value))
+		    							} else {
+				    						results.push(value);
+		    							}
+				    				} else {
+				    					throw new Error(`Variable "${commandName}" not found!`)
+				    				}
+		    						continue;
+			    				}
+		    				}
+	    					throw new Error(`Command by name "${commandName}" not found!`)
 		    			}
 		    		} catch(e) {
 						await this.cmdEnviroment.commandController.Print(e.message.replace("\n", ""));
